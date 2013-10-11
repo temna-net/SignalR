@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Security.Principal;
 using System.Threading.Tasks;
+using System.Web;
+using System.Web.Security;
 using Microsoft.AspNet.SignalR.Samples;
 using Microsoft.AspNet.SignalR.Tests.Common;
 using Microsoft.AspNet.SignalR.Tests.Common.Connections;
@@ -23,6 +26,7 @@ namespace Microsoft.AspNet.SignalR.Samples
             app.MapSignalR<StreamingConnection>("/streaming-connection");
 
             app.Use(typeof(ClaimsMiddleware));
+            app.Use<CachedPrincipalMiddleware>();
 
             ConfigureSignalR(GlobalHost.DependencyResolver, GlobalHost.HubPipeline);
 
@@ -72,6 +76,30 @@ namespace Microsoft.AspNet.SignalR.Samples
 
                     var claimsIdentity = new ClaimsIdentity(claims);
                     context.Request.User = new ClaimsPrincipal(claimsIdentity);
+                }
+
+                return Next.Invoke(context);
+            }
+        }
+
+        private class CachedPrincipalMiddleware : OwinMiddleware
+        {
+            public CachedPrincipalMiddleware(OwinMiddleware next)
+                : base(next)
+            {
+            }
+
+            public override Task Invoke(IOwinContext context)
+            {
+                var authCookie = context.Request.Cookies[FormsAuthentication.FormsCookieName];
+                if (authCookie != null)
+                {
+                    var authTicket = FormsAuthentication.Decrypt(authCookie);
+                    var principal = HttpContext.Current.Cache[authTicket.Name] as IPrincipal;
+                    if (!authTicket.Expired && principal != null)
+                    {
+                        context.Request.User = principal;
+                    }
                 }
 
                 return Next.Invoke(context);
