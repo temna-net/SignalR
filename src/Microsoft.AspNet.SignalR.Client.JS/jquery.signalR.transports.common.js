@@ -448,8 +448,9 @@
 
         verifyLastActive: function (connection) {
             if (new Date().getTime() - connection._.lastActiveAt >= connection.reconnectWindow) {
-                connection.log("There has not been an active server connection for an extended period of time. Stopping connection.");
-                connection.stop();
+                var message = signalR._.format(signalR.resources.reconnectWindowTimeout, new Date(connection._.lastActiveAt), connection.reconnectWindow);
+                var reason = { source: "TimeoutException", message: message };
+                connection.stop(/* async */ false, /* notifyServer */ false, reason);
                 return false;
             }
 

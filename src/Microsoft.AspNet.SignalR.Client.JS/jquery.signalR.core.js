@@ -33,7 +33,8 @@
         pingServerFailedStatusCode: "Failed to ping server.  Server responded with status code {0}, stopping the connection.",
         pingServerFailedParse: "Failed to parse ping server response, stopping the connection.",
         noConnectionTransport: "Connection is in an invalid state, there is no transport active.",
-        webSocketsInvalidState: "The Web Socket transport is in an invalid state, transitioning into reconnecting."
+        webSocketsInvalidState: "The Web Socket transport is in an invalid state, transitioning into reconnecting.",
+        reconnectWindowTimeout: "Connection has been inactive since {0} and it has exceeded reconnect window of {1} ms. Stopping connection."
     };
 
     if (typeof ($) !== "function") {
@@ -828,7 +829,7 @@
             /// <returns type="signalR" />
             var connection = this;
             $(connection).bind(events.onDisconnect, function (e, data) {
-                callback.call(connection);
+                callback.call(connection, data);
             });
             return connection;
         },
@@ -867,10 +868,11 @@
             return connection;
         },
 
-        stop: function (async, notifyServer) {
+        stop: function (async, notifyServer, reason) {
             /// <summary>Stops listening</summary>
             /// <param name="async" type="Boolean">Whether or not to asynchronously abort the connection</param>
             /// <param name="notifyServer" type="Boolean">Whether we want to notify the server that we are aborting the connection</param>
+            /// <param name="reason" type="Object">This object is passed to the onDisconnect event</param>
             /// <returns type="signalR" />
             var connection = this,
                 // Save deferral because this is always cleaned up
@@ -935,7 +937,7 @@
             }
 
             // Trigger the disconnect event
-            $(connection).triggerHandler(events.onDisconnect);
+            $(connection).triggerHandler(events.onDisconnect, [reason]);
 
             delete connection.messageId;
             delete connection.groupsToken;

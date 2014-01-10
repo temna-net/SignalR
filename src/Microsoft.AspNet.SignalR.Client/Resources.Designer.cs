@@ -147,6 +147,15 @@ namespace Microsoft.AspNet.SignalR.Client {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Connection has been inactive since {0} and it has exceeded reconnect window of {1}. Stopping connection..
+        /// </summary>
+        internal static string Error_ReconnectWindowTimeout {
+            get {
+                return ResourceManager.GetString("Error_ReconnectWindowTimeout", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Server negotiation failed..
         /// </summary>
         internal static string Error_ServerNegotiationFailed {

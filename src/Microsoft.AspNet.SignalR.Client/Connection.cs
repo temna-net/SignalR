@@ -107,6 +107,11 @@ namespace Microsoft.AspNet.SignalR.Client
         public event Action Closed;
 
         /// <summary>
+        /// Occurs when the <see cref="Connection"/> is stopped.
+        /// </summary>
+        public event Action<Exception> ClosedWithReason;
+
+        /// <summary>
         /// Occurs when the <see cref="Connection"/> starts reconnecting after an error.
         /// </summary>
         public event Action Reconnecting;
@@ -550,15 +555,25 @@ namespace Microsoft.AspNet.SignalR.Client
         /// </summary>
         public void Stop()
         {
-            Stop(DefaultAbortTimeout);
+            Stop(null, DefaultAbortTimeout);
         }
 
         /// <summary>
         /// Stops the <see cref="Connection"/> and sends an abort message to the server.
+        /// <param name="reason">Close reason</param>
+        /// </summary>
+        public void Stop(Exception reason)
+        {
+            Stop(reason, DefaultAbortTimeout);
+        }
+
+        /// <summary>
+        /// Stops the <see cref="Connection"/> and sends an abort message to the server.
+        /// <param name="reason">Close reason</param>
         /// <param name="timeout">The timeout</param>
         /// </summary>
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "We don't want to raise the Start exception on Stop.")]
-        public void Stop(TimeSpan timeout)
+        public void Stop(Exception reason, TimeSpan timeout)
         {
             lock (_startLock)
             {
@@ -595,7 +610,7 @@ namespace Microsoft.AspNet.SignalR.Client
 
                 _transport.Abort(this, timeout, _connectionData);
 
-                Disconnect();
+                Disconnect(reason);
             }
         }
 
@@ -605,10 +620,24 @@ namespace Microsoft.AspNet.SignalR.Client
         /// </summary>
         void IConnection.Disconnect()
         {
-            Disconnect();
+            Disconnect(null);
+        }
+
+        /// <summary>
+        /// Stops the <see cref="Connection"/> without sending an abort message to the server.
+        /// This function is called after we receive a disconnect message from the server.
+        /// </summary>
+        void IConnection.Disconnect(Exception reason)
+        {
+            Disconnect(reason);
         }
 
         private void Disconnect()
+        {
+            Disconnect(null);
+        }
+
+        private void Disconnect(Exception reason)
         {
             lock (_stateLock)
             {
@@ -651,16 +680,20 @@ namespace Microsoft.AspNet.SignalR.Client
                     _traceWriter.Flush();
 #endif
                     // TODO: Do we want to trigger Closed if we are connecting?
-                    OnClosed();
+                    OnClosed(reason);
                 }
             }
         }
 
-        protected virtual void OnClosed()
+        protected virtual void OnClosed(Exception reason)
         {
             if (Closed != null)
             {
                 Closed();
+            }
+            if (ClosedWithReason != null)
+            {
+                ClosedWithReason(reason);
             }
         }
 
@@ -904,11 +937,11 @@ namespace Microsoft.AspNet.SignalR.Client
         }
 
         // TODO: Refactor into a helper class
-        private static IDisposable SetTimeout(TimeSpan delay, Action operation)
+        private static IDisposable SetTimeout(TimeSpan delay, Action<Exception> operation)
         {
             var cancellableInvoker = new ThreadSafeInvoker();
 
-            TaskAsyncHelper.Delay(delay).Then(() => cancellableInvoker.Invoke(operation));
+            TaskAsyncHelper.Delay(delay).Then(() => cancellableInvoker.Invoke<Exception>(operation, null));
 
             // Disposing this return value will cancel the operation if it has not already been invoked.
             return new DisposableAction(() => cancellableInvoker.Invoke());
